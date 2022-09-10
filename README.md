@@ -1,6 +1,6 @@
 # svg_colors_tools
 
-A new Flutter project.
+A project to manage colors in svg files. Additionally we can remove style element because some flutter tools can't manage this element.
 
 ## Getting Started
 
