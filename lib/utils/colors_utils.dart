@@ -1,4 +1,4 @@
-
+// https://www.w3.org/TR/SVGTiny12/painting.html#Color
 
 final Map colorKeywords=
   {

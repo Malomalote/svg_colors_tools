@@ -31,7 +31,7 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDarkTheme = ref.watch(darkTheme);
+    final isDarkTheme = ref.watch(darkThemeProvider);
     const flexScheme = FlexScheme.verdunHemlock;
     return MaterialApp(
       debugShowCheckedModeBanner: false,

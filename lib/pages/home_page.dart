@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:svg_colors_tools/models/file_svg.dart';
 
-import '../providers/theme_provider.dart';
-import '../utils/svg_utils.dart';
+import '../providers/providers.dart';
+import '../utils/utils.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -17,11 +18,6 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class HomePageState extends ConsumerState<HomePage> {
-  String svg = '';
-  String originalSvg = '';
-  String outputName = 'output.svg';
-  List<String> listColors = [];
-  Map<String, String> mapColors = {};
   Color pickerColor = Colors.white;
 
   void changeColor(Color color) {
@@ -30,14 +26,17 @@ class HomePageState extends ConsumerState<HomePage> {
     });
   }
 
-  bool replaceStyle = false;
   Color colorReplace = Colors.white;
 
   @override
   Widget build(
     BuildContext context,
   ) {
-    final currentTheme = ref.read(darkTheme.notifier);
+    var replaceStyleSwitch = ref.watch(replaceStyleProvider);
+print(replaceStyleSwitch);
+
+    final currentTheme = ref.read(darkThemeProvider.notifier);
+    final fileSvg = ref.watch(fileSvgProvider);
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
@@ -72,19 +71,9 @@ class HomePageState extends ConsumerState<HomePage> {
                                 allowedExtensions: ['svg']);
 
                         if (result != null) {
-                          File file = File(result.files.single.path!);
-                          // svg = svgRemoveStyleLabel(file.readAsStringSync());
-
-                          originalSvg = file.readAsStringSync();
-                          svg = originalSvg;
-                          mapColors = searchColors(originalSvg);
-                          svg = normalizeColors(svg, mapColors);
-                          listColors = mapColors.values.toList();
-                          outputName = result.files.single.name;
-                          outputName =
-                              outputName.replaceAll('.svg', '_copia.svg');
-                          replaceStyle = false;
-                          setState(() {});
+                          ref
+                              .read(fileSvgProvider.notifier).update((state) => loadSvgFile(result.files.single));
+                              ref.read(replaceStyleProvider.notifier).update((state) => false);
                         }
                         // else {
                         //    User canceled the picker
@@ -93,27 +82,34 @@ class HomePageState extends ConsumerState<HomePage> {
                       child: const Text('Load file')),
                 ],
               ),
-              (svg != '')
+              (fileSvg.currentSvg != '')
                   ? Expanded(
                       child: Column(
                         // mainAxisSize: MainAxisSize.min,
                         // mainAxisAlignment: MainAxisAlignment.start,
                         children: [
-                          originalSvg.contains('<style')
+                          // originalSvg.contains('<style')
+                          fileSvg.hasStyleTag
                               ? Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Text('Replace style element'),
+                                    Text('Replace style element ${replaceStyleSwitch}'),
                                     Switch(
-                                        value: replaceStyle,
+                                        // value: replaceStyle,
+                                        value: replaceStyleSwitch,
+                                            
                                         onChanged: (bool value) {
-                                          setState(() {
-                                            replaceStyle = value;
-                                            replaceStyle
-                                                ? svg = svgRemoveStyleLabel(
-                                                    originalSvg)
-                                                : svg = originalSvg;
-                                          });
+                                          ref.read(replaceStyleProvider.notifier).update((state)=>value);
+
+                                          replaceStyleSwitch?
+                                          
+                                          fileSvg.currentSvg=fileSvg.originalSvg
+                                          :
+                                          fileSvg.currentSvg=svgRemoveStyleLabel(fileSvg.originalSvg);
+                                          // fileSvg.currentSvg=svgRemoveStyleLabel(fileSvg.originalSvg)
+                                          // :
+                                          // fileSvg.currentSvg=fileSvg.originalSvg;
+
                                         }),
                                   ],
                                 )
@@ -121,36 +117,31 @@ class HomePageState extends ConsumerState<HomePage> {
                           const SizedBox(height: 20),
                           SizedBox(
                             height: size.height / 2.5,
-                            child: SvgPicture.string(svg,
+                            child: SvgPicture.string(fileSvg.currentSvg,
                                 fit: BoxFit.contain, height: size.height / 2.6),
                           ),
                           const SizedBox(height: 20),
                           Flexible(
-                            // fit: FlexFit.tight,
-                            // flex: 1,
                             child: ListView(
                               shrinkWrap: true,
                               primary: false,
                               clipBehavior: Clip.hardEdge,
                               children: [
-                                ...listColors.map((color) {
+                                ...fileSvg.listColors.map((color) {
                                   String colorText = '#000000';
                                   String part1 = color.substring(1, 3);
                                   String part2 = color.substring(3, 5);
                                   String part3 = color.substring(5, 7);
-
                                   if ((part1 == part2 ||
                                           part1 == part3 ||
                                           part2 == part3) &&
                                       int.parse(part1, radix: 16) < 128) {
                                     colorText = '#ffffff';
                                   }
-
                                   return ListTile(
                                     title: InkWell(
                                       onTap: () {
                                         pickerColor = colorFromHex(color)!;
-
                                         showDialog(
                                           useRootNavigator: true,
                                           context: context,
@@ -167,8 +158,6 @@ class HomePageState extends ConsumerState<HomePage> {
                                                   enableAlpha: false,
                                                   pickerColor: pickerColor,
                                                   onColorChanged: changeColor,
-                                                  // colorPickerWidth: 100,
-
                                                   labelTypes: const [],
                                                 ),
                                               ),
@@ -177,17 +166,22 @@ class HomePageState extends ConsumerState<HomePage> {
                                                   child: const Text('Got it'),
                                                   onPressed: () {
                                                     setState(() {
-                                                      svg = replaceColor(
-                                                          svg,
-                                                          color,
-                                                          colorToHex(
-                                                                  pickerColor)
-                                                              .toLowerCase()
-                                                              .replaceFirst(
-                                                                  'ff', '#'));
-                                                      listColors[listColors
-                                                              .indexOf(
-                                                                  color)] =
+                                                      fileSvg.currentSvg =
+                                                          replaceColor(
+                                                              fileSvg
+                                                                  .currentSvg,
+                                                              color,
+                                                              colorToHex(
+                                                                      pickerColor)
+                                                                  .toLowerCase()
+                                                                  .replaceFirst(
+                                                                      'ff',
+                                                                      '#'));
+                                                      fileSvg.listColors[
+                                                              fileSvg
+                                                                  .listColors
+                                                                  .indexOf(
+                                                                      color)] =
                                                           colorToHex(
                                                                   pickerColor)
                                                               .toLowerCase()
@@ -230,14 +224,14 @@ class HomePageState extends ConsumerState<HomePage> {
                                 String? outputFile =
                                     await FilePicker.platform.saveFile(
                                   dialogTitle: 'Please select an output file:',
-                                  fileName: outputName,
+                                  fileName: fileSvg.outputFileName,
                                 );
 
                                 if (outputFile == null) {
-                                  // User canceled the picker
                                 } else {
                                   File newFile = File(outputFile);
-                                  newFile.writeAsStringSync(svg);
+                                  newFile.writeAsStringSync(
+                                      fileSvg.currentSvg);
                                 }
                               },
                               child: const Text('Save file')),
